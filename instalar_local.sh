@@ -158,7 +158,11 @@ echo "[7/7] Clave de OpenRouter y arranque"
 if ! grep -q "OPENROUTER_API_KEY=.\{10,\}" "$PREFIJO/env/.env" 2>/dev/null; then
   echo "  Necesito tu OPENROUTER_API_KEY (la pones en el .env, no la vemos nosotros)."
   echo "  La consigues en https://openrouter.ai/keys"
-  read -r -p "  Pega tu OPENROUTER_API_KEY: " ORKEY
+  if [ -t 0 ]; then
+    read -r -p "  Pega tu OPENROUTER_API_KEY: " ORKEY || ORKEY=""
+  else
+    ORKEY=""
+  fi
   if [ -n "${ORKEY:-}" ]; then
     # inserta/sustituye la linea en el .env sin tocar el resto
     grep -v '^OPENROUTER_API_KEY=' "$PREFIJO/env/.env" > "$PREFIJO/env/.env.tmp" || true
@@ -176,10 +180,13 @@ echo
 echo "=============================================="
 echo " LISTO. Arrancando el estudio en segundo plano..."
 echo " Luego abre:  http://127.0.0.1:$PORT"
-echo " Para parar:  Ctrl+C  (o mata el proceso)"
+echo " Para parar:  pkill -f app.py"
 echo " Desinstalar: $PREFIJO/desinstalar.sh"
 echo "=============================================="
 
+# mata cualquier instancia previa en el puerto (evita 'address already in use')
+pkill -f "$REPO/app.py" 2>/dev/null || true
+sleep 1
 # arranque en segundo plano con log
 nohup "$PREFIJO/arrancar.sh" > "$PREFIJO/data/estudio.log" 2>&1 &
 echo "  PID: $!"
