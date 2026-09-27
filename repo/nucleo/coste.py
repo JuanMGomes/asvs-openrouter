@@ -63,7 +63,7 @@ RUTA_GLOBAL = (os.environ.get("ESTUDIO_COSTE_GLOBAL")
                or os.path.join(RAIZ_ESTUDIO, "coste_global.jsonl"))
 NOMBRE_COSTE = "coste.jsonl"
 
-PROVEEDORES = ("openai", "tts", "claude_cli")
+PROVEEDORES = ("openai", "tts", "claude_cli", "openrouter")
 SIN_DOLARES = ("claude_cli",)            # se miden en tokens y no suman al total
 ETIQUETAS = {"openai": "OpenAI", "tts": "TTS", "claude_cli": "Claude"}
 
@@ -591,8 +591,6 @@ def reportar_openai(usage, calidad, tamano, imagenes=1, operacion="imagen",
         if isinstance(detalles, dict) else 0
     importe, procedencia = coste_openai(usage, tamano, calidad, imagenes)
     ficha = {"calidad": calidad, "tamano": tamano}
-    # De donde sale el importe, guardado con el evento: sin esto no habria forma
-    # de saber despues si un gasto viejo se tarifo por tokens o por imagen.
     ficha["coste"] = procedencia
     ficha.update(detalle or {})
     return _anotar("openai", operacion, unidad=unidad,
@@ -601,9 +599,33 @@ def reportar_openai(usage, calidad, tamano, imagenes=1, operacion="imagen",
                            "cache": cache},
                    cantidad={"imagenes": imagenes},
                    usd=importe,
-                   # el importe sale de la tabla de tarifas, no de la factura:
-                   # la cabecera lo pinta con un matiz distinto por eso mismo
                    usd_estimado=True, detalle=ficha)
+
+
+def reportar_openrouter(modelo, imagenes=1, operacion="imagen",
+                        unidad=None, detalle=None):
+    """Anota una imagen generada via OpenRouter (cobra POR IMAGEN).
+
+    La mayoria de modelos de imagen de OpenRouter no devuelven 'usage' util;
+    el coste real es el precio por imagen de la tabla de tarifas. Si el modelo
+    no esta en la tabla, usa el precio por defecto de 'openrouter_imagen'.
+    """
+    tabla = (tarifas().get("openrouter_imagen") or {}).get("usd_por_imagen") or {}
+    modelo = str(modelo or "").strip()
+    precio = tabla.get(modelo)
+    if precio is None:
+        # modelo no listado: cae al defecto del proveedor
+        defecto = (tarifas().get("openrouter_imagen") or {}).get("modelo_por_defecto")
+        precio = tabla.get(defecto) if defecto else None
+    imagenes = int(imagenes or 1)
+    importe = None if precio is None else round(float(precio) * imagenes, 6)
+    ficha = {"modelo": modelo, "imagenes": imagenes}
+    ficha["coste"] = {"via": "imagen_openrouter",
+                      "precio_por_imagen": precio}
+    ficha.update(detalle or {})
+    return _anotar("openrouter", operacion, unidad=unidad,
+                   cantidad={"imagenes": imagenes},
+                   usd=importe, usd_estimado=False, detalle=ficha)
 
 
 def reportar_tts(caracteres, operacion="sintesis", unidad=None, tokens=None,
@@ -618,38 +640,44 @@ def reportar_tts(caracteres, operacion="sintesis", unidad=None, tokens=None,
 
 
 def reportar_claude(sobre, operacion="cli", unidad=None, detalle=None):
-    """Anota una llamada al CLI de Claude leyendo su bloque 'usage'.
+    """Anota una llamada al CLI/API de texto leyendo su bloque 'usage'.
 
-    Entrada, salida y cache van por separado porque la cache cambia mucho el
-    recuento y mezclarlas oculta de donde viene el gasto.
+    Si el sobre trae 'proveedor' == 'openrouter' (el shim bin/claude), se tarifa
+    por token real via tarifas['openrouter']['usd_por_token'] y SUMA al total del
+    video. Si es el CLI de Claude original, se queda como claude_cli (suscripcion,
+    sin dolares).
     """
     sobre = sobre if isinstance(sobre, dict) else {}
+    es_openrouter = str(sobre.get("proveedor") or "").lower() == "openrouter"
     usage = sobre.get("usage") if isinstance(sobre.get("usage"), dict) else {}
     cache = (int(usage.get("cache_creation_input_tokens") or 0)
              + int(usage.get("cache_read_input_tokens") or 0))
     ficha = {}
+    tok_entrada = int(usage.get("input_tokens") or 0)
+    tok_salida = int(usage.get("output_tokens") or 0)
+    importe = None
+    if es_openrouter:
+        precios = (tarifas().get("openrouter") or {}).get("usd_por_token") or {}
+        pt = precios.get("entrada_texto")
+        ps = precios.get("salida")
+        if pt is not None and ps is not None:
+            importe = round(tok_entrada * float(pt) + tok_salida * float(ps), 6)
+            ficha["coste_calculado_usd"] = importe
     if sobre.get("model"):
         ficha["modelo"] = sobre["model"]
     if sobre.get("duration_ms") is not None:
         ficha["segundos"] = round(float(sobre["duration_ms"]) / 1000.0, 1)
-    # El sobre del CLI no dice con que esfuerzo se le hablo, y el esfuerzo es la
-    # variable que mas mueve el tiempo: lo estampa pasos/cli_claude al volver.
     ajuste = sobre.get("_ajuste")
     if isinstance(ajuste, dict):
         ficha.setdefault("modelo", ajuste.get("modelo"))
         ficha["esfuerzo"] = ajuste.get("esfuerzo")
         if ajuste.get("segundos") is not None:
             ficha["segundos"] = ajuste["segundos"]
-    # el CLI informa de su coste, pero no se anota como dolares del video: no es
-    # un cargo por llamada sino consumo de una suscripcion ya pagada
-    if sobre.get("total_cost_usd") is not None:
-        ficha["coste_suscripcion_usd"] = round(float(sobre["total_cost_usd"]), 4)
     ficha.update(detalle or {})
-    return _anotar("claude_cli", operacion, unidad=unidad,
-                   tokens={"entrada": usage.get("input_tokens"),
-                           "salida": usage.get("output_tokens"),
-                           "cache": cache},
-                   detalle=ficha)
+    proveedor = "openrouter" if es_openrouter else "claude_cli"
+    return _anotar(proveedor, operacion, unidad=unidad,
+                   tokens={"entrada": tok_entrada, "salida": tok_salida, "cache": cache},
+                   usd=importe, usd_estimado=False, detalle=ficha)
 
 
 # ----------------------------------------------------------- instrumentacion
@@ -750,10 +778,14 @@ def _medir_imagen(original):
         meta = meta if isinstance(meta, dict) else {}
         calidad = kwargs.get("quality") or meta.get("quality") or "low"
         tamano = meta.get("tamano") or kwargs.get("tamano") or "apaisado"
+        detalle = {"modelo": meta.get("modelo"),
+                   "refs": meta.get("refs"),
+                   "segundos": meta.get("segundos")}
         registro = reportar_openai(meta.get("usage"), calidad, tamano,
-                                   detalle={"modelo": meta.get("modelo"),
-                                            "refs": meta.get("refs"),
-                                            "segundos": meta.get("segundos")})
+                                   detalle=detalle) \
+            if not str(meta.get("modelo") or "").startswith("openrouter/") \
+            else reportar_openrouter(meta.get("modelo"), imagenes=1,
+                                    detalle=detalle)
         # Y EL IMPORTE DE VERDAD SE DEVUELVE, no solo se anota.
         #
         # El motor trae en `meta["coste"]` el precio de su TABLA POR IMAGEN

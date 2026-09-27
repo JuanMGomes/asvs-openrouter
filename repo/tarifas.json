@@ -1,7 +1,7 @@
 {
   "version": 1,
   "moneda": "USD",
-  "actualizado": "2026-08-13T12:04:49",
+  "actualizado": "2026-09-27T12:04:49",
   "openai": {
     "modelo": "gpt-image-2",
     "usd_por_token": {
@@ -30,6 +30,25 @@
     "usd_por_caracter": 6.5e-05,
     "plan": "Pro con overages",
     "nota": "Plan Pro (5 $/mes, 100.000 creditos incluidos) con overages a 65 $ por millon de creditos. En Sonic, 1 credito = 1 caracter, asi que el caracter de mas cuesta 0,000065 $. Se anota el coste MARGINAL a proposito: los 100.000 creditos incluidos ya estan pagados cada mes, y prorratear los 5 $ haria que el mismo video costara distinto segun cuanto se hubiera usado antes. Los eventos anotados antes de fijar esta tarifa no se reescriben: el historico anterior sigue sin importe."
+  },
+  "openrouter_imagen": {
+    "modelo_por_defecto": "bytedance-seed/seedream-4.5",
+    "usd_por_imagen": {
+      "bytedance-seed/seedream-4.5": 0.05,
+      "openai/gpt-image-2": 0.035,
+      "openai/gpt-5-image-mini": 0.02,
+      "nota": "OpenRouter cobra POR IMAGEN. Seedream 4.5 2K ~0,05 $; gpt-image-2 low ~0,035 $; gpt-5-image-mini mas barato. Se usa cuando la API no devuelve usage (la mayoria de modelos de imagen de OpenRouter no lo hace)."
+    },
+    "nota": "Motor de imagen alternativo via OpenRouter. Coste real por imagen; si el modelo devolviera usage por tokens se tarifaria por token, pero hoy la via principal es por imagen."
+  },
+  "openrouter": {
+    "usd_por_token": {
+      "entrada_texto": 3e-07,
+      "entrada_imagen": 8e-06,
+      "salida": 3e-06,
+      "nota": "Aproximacion de Gemini 3.7 Flash (modelo por defecto del shim). Gemini Flash: ~0,30 $/M entrada, ~3 $/M salida; aqui 0,0000003/0,000003 como orden de magnitud. Cambia estos precios en tarifas.json si usas otro modelo por defecto (ASVS_LLM_MODEL). El texto viaja por OpenRouter, no por suscripcion."
+    },
+    "nota": "Texto generado por el shim bin/claude contra OpenRouter. Antes era claude_cli (suscripcion, sin dolares); ahora se tarifa por token real."
   },
   "claude_cli": {
     "suma_al_total": false,
