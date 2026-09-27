@@ -40,7 +40,7 @@ case "$OS" in
       $SUDO add-apt-repository -y ppa:deadsnakes/ppa >/dev/null 2>&1 || true
       $SUDO apt-get update -qq
     fi
-    for pkg in ffmpeg git python3.12 python33.12-venv python3-pip fonts-mscorefonts-installer curl; do
+    for pkg in ffmpeg git python3.12 python3.12-venv python3-pip fonts-mscorefonts-installer curl; do
       if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         echo "  instalando $pkg..."; $SUDO apt-get install -y -qq "$pkg" >/dev/null 2>&1 || true
       fi
@@ -96,7 +96,11 @@ REPO="$PREFIJO/repo"
 # ---------------------------------------------------------------- 4. venv + deps
 echo "[4/7] Entorno virtual y dependencias Python..."
 if [ ! -f "$PREFIJO/venv/bin/activate" ]; then
-  "$PY" -m venv "$PREFIJO/venv"
+  if ! "$PY" -m venv "$PREFIJO/venv" 2>/dev/null; then
+    echo "  venv fallo (faltaba python3.12-venv). Instalandolo..."
+    $SUDO apt-get install -y -qq python3.12-venv >/dev/null 2>&1 || true
+    "$PY" -m venv "$PREFIJO/venv"
+  fi
 fi
 # shellcheck disable=SC1091
 source "$PREFIJO/venv/bin/activate"
