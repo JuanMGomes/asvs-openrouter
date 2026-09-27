@@ -111,7 +111,7 @@ echo "  Python: $(python --version 2>&1)"
 
 # ---------------------------------------------------------------- 5. shim + env
 echo "[5/7] Preparando shim y .env..."
-mkdir -p "$PREFIJO/bin" "$PREFIJO/data"
+mkdir -p "$PREFIJO/bin" "$PREFIJO/data" "$PREFIJO/env"
 ln -sf "$REPO/bin/claude" "$PREFIJO/bin/claude"
 chmod +x "$REPO/bin/claude"
 if [ ! -f "$PREFIJO/env/.env" ]; then
