@@ -9,6 +9,7 @@
 #
 #  Al final pide la OPENROUTER_API_KEY (no la guardamos nosotros; va al .env).
 #  Todo vive en $PREFIJO (defecto ~/asvs) y se desinstala con desinstalar.sh.
+#  El repo se clona plano en $PREFIJO/repo (app.py, pasos/, nucleo/, motores/).
 # =============================================================================
 set -euo pipefail
 
