@@ -1,0 +1,27 @@
+# =============================================================================
+#  docker-compose para AS Video Studio (fork OpenRouter)
+#  Uso:
+#    1) copia .env.example a .env y rellena OPENROUTER_API_KEY
+#    2) docker compose up -d --build
+#    3) abre http://localhost:8020
+# =============================================================================
+services:
+  asvs:
+    build: .
+    container_name: asvs-openrouter
+    ports:
+      - "8020:8020"
+    env_file:
+      - .env
+    environment:
+      # Asegura que el shim 'claude' esta primero en el PATH del contenedor
+      PATH: "/app/bin:/usr/local/bin:/usr/bin:/bin"
+    volumes:
+      - ./data:/data
+    # Recursos: el render es CPU-intensivo. Sube esto en una maquina potente.
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+    restart: unless-stopped

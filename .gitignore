@@ -1,0 +1,17 @@
+# Secretos y datos de usuario nunca se suben
+.env
+env/
+data/
+*.key
+secretos/
+**/secretos/**
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sistema del repo original
+.DS_Store
+*.log

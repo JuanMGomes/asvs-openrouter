@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# =============================================================================
+#  SHIM `claude` -> OpenRouter  (AS Video Studio, sin suscripcion de Claude)
+# -----------------------------------------------------------------------------
+#  AS Video Studio invoca el CLI de Claude Code asi:
+#      claude -p --model <m> --effort <e> --output-format json \
+#             [--append-system-prompt <s>]   <instruccion por stdin>
+#  y espera en stdout un sobre JSON:  {"result": "<texto>", ...}
+#
+#  Este script se pone PRIMERO en el PATH y reproduce exactamente ese contrato,
+#  pero llama a un endpoint OpenAI-compatible (OpenRouter) con una API key.
+#  No se toca pasos/cli_claude.py: el repo sigue creyendo que habla con `claude`.
+#
+#  Requisitos:
+#    - OPENROUTER_API_KEY  (obligatoria)
+#    - OPENROUTER_BASE_URL (opcional, defecto https://openrouter.ai/api/v1)
+#    - ASVS_LLM_MODEL      (opcional, modelo por defecto si --model es haiku/sonnet/opus)
+#
+#  Mapeo de "alias" del repo a modelos reales (cambia aqui a gusto/coste):
+#    haiku  -> deepseek/deepseek-v4.1-flash        (~$0.04/$0.49 por 1M)
+#    sonnet -> qwen/qwen3.7-flash                  (~$0.03/$0.13 por 1M)
+#    opus   -> google/gemini-3.7-flash             (~$0.19/$0.94 por 1M)
+#  --effort se ignora (los modelos de OpenRouter no usan el flag de Claude),
+#  pero se acepta para no romper la llamada.
+# =============================================================================
+import json
+import os
+import sys
+import urllib.request
+
+BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER", "https://github.com/NeverBlink/as-video-studio")
+SITE_NAME = os.environ.get("OPENROUTER_SITE_NAME", "AS Video Studio")
+
+ALIAS = {
+    "haiku": "deepseek/deepseek-v4.1-flash",
+    "sonnet": "qwen/qwen3.7-flash",
+    "opus": "google/gemini-3.7-flash",
+}
+# Modelo por defecto si el repo pide "opus" (su defecto) y no hay ASVS_LLM_MODEL.
+DEFECTO = os.environ.get("ASVS_LLM_MODEL", "google/gemini-3.7-flash")
+
+
+def resolver_modelo(alias):
+    a = (alias or "").strip().lower()
+    if a in ALIAS:
+        return ALIAS[a]
+    if a:  # id completo tipo 'claude-opus-5' o 'anthropic/...'
+        return a
+    return DEFECTO
+
+
+def main():
+    if not API_KEY:
+        # Mismo contrato de error que el CLI: sale con JSON en result.
+        json.dump({"is_error": True,
+                   "result": "Falta OPENROUTER_API_KEY en el entorno del servicio."},
+                  sys.stdout)
+        sys.exit(1)
+
+    args = sys.argv[1:]
+    modelo = DEFECTO
+    system = None
+    modo = "print"  # -p
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "-p" or a == "--print":
+            modo = "print"
+        elif a == "--model":
+            modelo = resolver_modelo(args[i + 1]); i += 1
+        elif a == "--effort":
+            i += 1  # aceptado y descartado
+        elif a == "--output-format":
+            i += 1  # aceptado y descartado (siempre json)
+        elif a == "--append-system-prompt":
+            system = args[i + 1]; i += 1
+        elif a in ("--no-session-persistence", "--verbose", "--input-format"):
+            i += 1
+        # cualquier otro flag lo ignoramos sin romper
+        i += 1
+
+    instruccion = sys.stdin.read()
+
+    mensajes = []
+    if system:
+        mensajes.append({"role": "system", "content": system})
+    mensajes.append({"role": "user", "content": instruccion})
+
+    payload = {
+        "model": modelo,
+        "messages": mensajes,
+        "stream": False,
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        BASE_URL + "/chat/completions", data=data,
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": HTTP_REFERER,
+            "X-Title": SITE_NAME,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            cuerpo = json.loads(resp.read().decode("utf-8"))
+        texto = cuerpo["choices"][0]["message"]["content"]
+    except Exception as e:  # noqa: BLE001
+        json.dump({"is_error": True,
+                   "result": f"Error al llamar a OpenRouter: {e}"}, sys.stdout)
+        sys.exit(1)
+
+    # Sobre compatible con lo que parsea pasos/cli_claude.py:
+    #   sobre["result"] = texto ; sobre["is_error"] = False ; sobre["model"]
+    json.dump({
+        "result": texto,
+        "is_error": False,
+        "model": modelo,
+        "session_id": "",
+        "type": "result",
+    }, sys.stdout)
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
