@@ -32,7 +32,7 @@
     "nota": "Plan Pro (5 $/mes, 100.000 creditos incluidos) con overages a 65 $ por millon de creditos. En Sonic, 1 credito = 1 caracter, asi que el caracter de mas cuesta 0,000065 $. Se anota el coste MARGINAL a proposito: los 100.000 creditos incluidos ya estan pagados cada mes, y prorratear los 5 $ haria que el mismo video costara distinto segun cuanto se hubiera usado antes. Los eventos anotados antes de fijar esta tarifa no se reescriben: el historico anterior sigue sin importe."
   },
   "openrouter_imagen": {
-    "modelo_por_defecto": "bytedance-seed/seedream-4.5",
+    "modelo_por_defecto": "openai/gpt-image-2",
     "usd_por_imagen": {
       "bytedance-seed/seedream-4.5": 0.05,
       "openai/gpt-image-2": 0.035,

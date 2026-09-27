@@ -16,11 +16,13 @@
 #  Configura con variables de entorno:
 #      OPENROUTER_API_KEY        (obligatoria)
 #      OPENROUTER_BASE_URL       (defecto https://openrouter.ai/api/v1)
-#      ASVS_IMAGEN_MODEL         (defecto bytedance-seed/seedream-4.5)
-#      ASVS_IMAGEN_COSTE         (coste usd por imagen para el medidor; defecto 0.05)
+#      ASVS_IMAGEN_MODEL         (defecto openai/gpt-image-2 ; barato y acepta referencias)
+#      ASVS_IMAGEN_COSTE         (coste usd por imagen para el medidor; defecto 0.035)
 #
-#  Nota: la mayoria de modelos de imagen de OpenRouter NO aceptan imagenes de
-#  referencia (edicion). Este motor las IGNORA si el modelo no las soporta y
+#  Modelos por defecto (OpenRouter):
+#      openai/gpt-image-2                 ~$0.035 (low)  -> DEFECTO: el que usa el repo orig
+#      bytedance-seed/seedream-4.5        ~$0.05 por imagen 2K
+#      openai/gpt-5-image-mini            mas barato que gpt-image-2
 #  genera desde el prompt solo; si el modelo las acepta, las adjunta. Para el
 #  flujo de estilo del Estudio eso suele bastar (el "estilo" viaja en el prompt).
 # =============================================================================
@@ -33,7 +35,7 @@ import urllib.request
 API_URL = "https://openrouter.ai/api/v1/images/generations"
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
 API_KEY = lambda: os.environ.get("OPENROUTER_API_KEY", "")
-MODELO = os.environ.get("ASVS_IMAGEN_MODEL", "bytedance-seed/seedream-4.5")
+MODELO = os.environ.get("ASVS_IMAGEN_MODEL", "openai/gpt-image-2")
 
 TAMANOS = {
     "apaisado": "16:9",
@@ -42,7 +44,7 @@ TAMANOS = {
     "cine": "21:9",
 }
 # Coste por imagen para el medidor (no es el cobro real, es estimacion mostrada).
-PRECIO = float(os.environ.get("ASVS_IMAGEN_COSTE", "0.05"))
+PRECIO = float(os.environ.get("ASVS_IMAGEN_COSTE", "0.035"))
 
 HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER",
                               "https://github.com/NeverBlink/as-video-studio")
